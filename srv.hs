@@ -107,21 +107,6 @@ handle slotId = do
             AMQP.closeConnection conn
             
             return (BL.pack (getHitCode z))
-    --print y
-    --print msg 
-
-    --publish message to eexchange
-
-    --getLine -- wait for keypress
-
-    ---EXITING
-    --amqp
-    --AMQP.closeConnection conn
-    --memcached
-    --Single.disconnect server
-    --putStrLn "connection closed"
-    --return (BL.pack (getHitCode z))
-
 
 --getJsonString :: (Memcache mc, Show a) => mc -> a -> IO String
 getJsonString :: (Memcache mc) => mc ->T.Text -> IO String
