@@ -18,7 +18,7 @@ So what does that thing:
 TODO: 
 --
 * persistent amqp and memcached connections
-* rewrite amqp driver to handle custom headers (app_id, type)
+* rewrite amqp driver to handle custom message properties (app_id, type)
 * amqp and memcached exception handling
 * basic logging
 * double and triple check for laziness/concurrency
