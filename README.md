@@ -17,6 +17,7 @@ So what does that thing:
 
 TODO: 
 --
+* double and triple check for laziness/concurrency
 * text or yml config for ports, queue names, exchanges, hosts and much more
 * static linking (to run standalone)
 * basic logging
