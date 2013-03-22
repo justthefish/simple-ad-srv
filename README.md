@@ -17,9 +17,11 @@ So what does that thing:
 
 TODO: 
 --
+* persistent amqp and memcached connections
+* amqp and memcached exception handling
+* basic logging
 * double and triple check for laziness/concurrency
 * text or yml config for ports, queue names, exchanges, hosts and much more
 * static linking (to run standalone)
-* basic logging
 * build and install instructions
 
