@@ -56,22 +56,25 @@ instance FromJSON Hit where
     parseJSON (Array a) = mzero
     parseJSON _ = mzero
 
+main :: IO ()
 main = do
     let port = 3000
     putStrLn $ "Running on port " ++ show port ++ "..."
     run port application
 
 application req = do
-
     response <- lift $ handle $ head $ pathInfo req
     return $
         case pathInfo req of
+            [] -> yay
             ["yay"] -> yay
             x -> action response
 
+yay :: Response
 yay = ResponseBuilder status200 [("Content-type", "text/plain")] $
     mconcat $ map copyByteString ["yay"]
 
+action :: BL.ByteString -> Response
 action x = responseLBS status200 [("Content-type", "text/plain")] x
 
 handle :: T.Text -> IO BL.ByteString
@@ -108,7 +111,6 @@ handle slotId = do
             
             return (BL.pack (getHitCode z))
 
---getJsonString :: (Memcache mc, Show a) => mc -> a -> IO String
 getJsonString :: (Memcache mc) => mc ->T.Text -> IO String
 getJsonString memcache key = do
     let mckey = "galahad_cache_" ++ (T.unpack key)
@@ -121,11 +123,11 @@ getJsonString memcache key = do
 pick :: [a] -> IO a
 pick xs = randomRIO (0, (length xs - 1)) >>= return . (xs !!)   
 
---printHit :: (Show a) => Hit -> String
---printHit :: (IO a) => Hit -> String
+encodeHit :: Hit -> IO String
 encodeHit (Hit {banner = b, slot = s, campaign = c, code = code}) = do
     now <- getZonedTime
     let stamp = formatTime defaultTimeLocale "%Y%m%d%H00" now
     return ("{\"banner\":\"" ++ b ++ "\",\"slot\":\"" ++ s ++ "\",\"campaign\":\"" ++ c ++ "\", \"stamp\":\"" ++ stamp ++ "\"}")
 
+getHitCode :: Hit -> String
 getHitCode (Hit {banner = b, slot = s, campaign = c, code = code}) = code
