@@ -3,17 +3,31 @@ simple-ad-srv
 
 Simple ad server, written with Haskell Warp framework
 
-Dev environment was created with cabal-dev only, so i dont know if it will run on haskell-platform
-
 So what does that thing:
 --
-* parses a uri from http query
-* looks up specific key concatenated with uri in memcached
+* parses the key from http query uri
+* looks up for key in memcached
 * if such keys exists in memcached, get the string
 * tries to parse this string as specific JSON array
 * get random array element, pushes a notification object to RabbitMQ
 * responses with the "code" part of random element
 * else responses with empty string
+
+
+changes
+--
+
+ * i've updated to ghc 7.6.3, moved to cabal-dev build system since ghc doesnt accept multiple paths in 
+    GHC_PACKAGE_PATH anymore. And plain cabal just forbids its use.
+
+how to build:
+--
+
+    cabal-dev configure
+    cabal-dev install
+    cabal-dev build
+
+Simple, eh?
 
 TODO: 
 --
