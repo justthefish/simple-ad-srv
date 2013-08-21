@@ -62,6 +62,7 @@ main = do
     putStrLn $ "Running on port " ++ show port ++ "..."
     run port application
 
+application:: Application
 application req = do
     response <- lift $ handle $ head $ pathInfo req
     return $
