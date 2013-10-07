@@ -76,26 +76,16 @@ main = do
     case c of 
         Left err -> putStrLn err
         Right c -> do 
-            memcache <- initMemcache c
             conn <- initAmqp c
             
-            runApp c c memcache conn
+            runApp c c conn
             
-            closeConnections conn memcache
+            closeConnections conn 
 
 readJSON :: FilePath -> IO (BL.ByteString)
 readJSON fileName = BL.readFile fileName
 
     
-initMemcache :: Config -> IO (Server)
-initMemcache (Config { 
-        memcacheHost = memcacheHost,
-        memcachePort = memcachePort
-        }) = do
-    -- @todo FIXME Int -> PortNumber
-    server <- Single.connect memcacheHost 11211
-    return server
-
 initAmqp :: Config -> IO (Connection)
 initAmqp (Config { 
         amqpHost = amqpHost,
@@ -115,20 +105,18 @@ initAmqp (Config {
     AMQP.bindQueue chan amqpQueueName amqpExchangeName amqpKey
     return conn
 
-closeConnections :: Connection -> Server -> IO ()
-closeConnections conn memcache = do
+closeConnections :: Connection -> IO ()
+closeConnections conn = do
     AMQP.closeConnection conn
-    Single.disconnect memcache 
 
-
-runApp :: Config -> Config -> Server -> Connection -> IO ()
-runApp (Config {appPort = appPort}) config srv conn = do
+runApp :: Config -> Config -> Connection -> IO ()
+runApp (Config {appPort = appPort}) config conn = do
     putStrLn $ "Running on port " ++ (show appPort) ++ "..."
-    run appPort $ application config srv conn
+    run appPort $ application config conn
 
-application :: Config -> Server -> Connection -> Application
-application conf srv conn req = do
-    response <- lift $ handle conf srv conn $ Prelude.head $ pathInfo req
+application :: Config ->  Connection -> Application
+application conf conn req = do
+    response <- lift $ handle conf conf conn $ Prelude.head $ pathInfo req
 
     return $
         case pathInfo req of
@@ -142,10 +130,13 @@ yay = ResponseBuilder status200 [("Content-type", "text/plain")] $
 process:: BL.ByteString -> Response
 process x = responseLBS status200 [("Content-type", "text/plain")] x
 
-handle :: Config -> Server -> Connection -> Text -> IO BL.ByteString
-handle conf srv conn slotId = do 
+handle :: Config -> Config -> Connection -> Text -> IO BL.ByteString
+handle (Config{memcacheHost=memcacheHost, 
+        memcachePort=memcachePort}) conf conn slotId = do 
     --meat!
-    json <- getJsonString conf srv slotId
+    server <- Single.connect memcacheHost 11211
+    json <- getJsonString conf server slotId
+    Single.disconnect server
     let x = decode (BL.pack json) :: Maybe [Hit]
     
     case x of

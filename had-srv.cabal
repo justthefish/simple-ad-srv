@@ -16,6 +16,11 @@ cabal-version:       >=1.8
 
 executable had-srv
     main-is:        srv.hs           
+    ghc-options: 
+          -rtsopts 
+          -threaded 
+          -O2
+          "-with-rtsopts=-N -g1"
     --other-modules:      
     build-depends:  base ==4.6.*,
                     random,
