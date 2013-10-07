@@ -93,7 +93,6 @@ initAmqp (Config {
         amqpKey = amqpKey}) = do
     conn <- AMQP.openConnection amqpHost amqpVHost amqpUser amqpPassword
     chan <- AMQP.openChannel conn
-    --queues
     AMQP.declareQueue chan AMQP.newQueue {AMQP.queueName = amqpQueueName}
     AMQP.declareExchange chan 
                          AMQP.newExchange {AMQP.exchangeName = amqpExchangeName, 
@@ -113,13 +112,14 @@ runApp (Config {appPort = appPort}) config conn = do
 
 application :: Config ->  Connection -> Application
 application conf conn req = do
+    -- @FIXME!
     response <- lift $ handle conf conf conn $ Prelude.head $ pathInfo req
-
     return $
         case pathInfo req of
             [] -> yay
             ["yay"] -> yay
             x -> process response
+
 yay :: Response
 yay = ResponseBuilder status200 [("Content-type", "text/plain")] $
     mconcat $ Prelude.map copyByteString ["yay"]
@@ -130,7 +130,7 @@ process x = responseLBS status200 [("Content-type", "text/plain")] x
 handle :: Config -> Config -> Connection -> Text -> IO BL.ByteString
 handle (Config{memcacheHost=memcacheHost, 
         memcachePort=memcachePort}) conf conn slotId = do 
-    --meat!
+    -- @FIXME!
     server <- Single.connect memcacheHost 11211
     json <- getJsonString conf server slotId
     Single.disconnect server
@@ -142,7 +142,6 @@ handle (Config{memcacheHost=memcacheHost,
         Just x -> do
             z <- pick x
             msg <- encodeHit z
-            --amqp
             publishMessage conf conn msg
             return (BL.pack (getHitCode z))
 
@@ -170,7 +169,7 @@ getJsonString (Config {memcachePrefix = memcachePrefix}) memcache key = do
 pick :: [a] -> IO a
 pick xs = randomRIO (0, (Prelude.length xs - 1)) >>= return . (xs !!)   
 
--- @todo rewrite!
+-- @todo rewrite to generics!
 encodeHit :: Hit -> IO String
 encodeHit (Hit {banner = b, slot = s, campaign = c, code = code}) = do
     now <- getZonedTime
