@@ -63,10 +63,6 @@ data Hit = Hit {
 instance FromJSON Hit
 instance ToJSON Hit
 
-data Global = Global {
-    conn :: Connection,
-    serv :: Server
-}
 configFile :: FilePath
 configFile = "config.json"
 
@@ -107,6 +103,7 @@ initAmqp (Config {
 
 closeConnections :: Connection -> IO ()
 closeConnections conn = do
+    putStrLn "Shutting down..."
     AMQP.closeConnection conn
 
 runApp :: Config -> Config -> Connection -> IO ()

@@ -2,8 +2,8 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                had-srv
-version:             0.0.0.1
-synopsis:            Just a sample ad serving server
+version:             0.1.0.0
+synopsis:            Just a sample ad serving tool
 -- description:         
 -- license:             
 license-file:        LICENSE
