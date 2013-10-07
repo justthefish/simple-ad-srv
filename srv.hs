@@ -128,12 +128,12 @@ runApp (Config {appPort = appPort}) config srv conn = do
 
 application :: Config -> Server -> Connection -> Application
 application conf srv conn req = do
-    response <- lift $ handle conf srv conn $ pathInfo req
+    response <- lift $ handle conf srv conn $ Prelude.head $ pathInfo req
 
     return $
         case pathInfo req of
             [] -> yay
-            ["yay":rest] -> yay
+            ["yay"] -> yay
             x -> process response
 yay :: Response
 yay = ResponseBuilder status200 [("Content-type", "text/plain")] $
