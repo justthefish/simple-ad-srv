@@ -1,26 +1,23 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, DeriveGeneric #-}
 
-
-import qualified Data.ByteString.Lazy.Char8 as BL
-import qualified Data.ByteString.Base64.Lazy as LBase64
-
-import Data.Aeson ((.:), (.:?), decode, FromJSON(..), Value(..))
+import Data.Aeson 
 import Data.Array
 import Data.Monoid 
-import qualified Data.Text as T
-
-import Data.Time.Format
-import Data.Time.Clock
-import Data.Time
-import System.Locale
+import Data.Text 
 
 import Control.Applicative ((<$>), (<*>))
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+import Control.Monad.Reader
 
+import qualified Data.ByteString.Lazy.Char8 as BL
+import qualified Data.ByteString.Base64.Lazy as LBase64
+
+import GHC.Generics
 
 import Network.AMQP as AMQP
+import Network
 
 import Network.Memcache (Memcache)
 import qualified Network.Memcache
@@ -30,66 +27,127 @@ import Network.Memcache.Serializable(Serializable(..))
 import Network.Wai
 import Network.HTTP.Types (status200, status404)
 import Network.Wai.Handler.Warp (run)
-
+    
 import Blaze.ByteString.Builder (copyByteString)
-import qualified Data.ByteString.UTF8 as BU
-
 import System.Random
 
-import Data.Maybe
+import Data.Time.Format
+import Data.Time.Clock
+import Data.Time
+import System.Locale
+
+data Config = Config {
+    appPort :: !Int,
+    memcacheHost :: !String,
+    memcachePort :: !Int,
+    memcachePrefix :: !String,
+    amqpHost :: !String,
+    amqpVHost :: !Text,
+    amqpUser :: !Text,
+    amqpPassword :: !Text,
+    amqpQueueName :: !Text,
+    amqpExchangeName :: !Text,
+    amqpKey :: !Text
+} deriving (Show, Generic)
+
+instance FromJSON Config
+instance ToJSON Config
 
 data Hit = Hit { 
     banner :: String,
     slot :: String,
     campaign :: String,
     code :: String
-} deriving (Show)
+} deriving (Show, Generic)
 
-process v = Hit <$>
-    (v .: "banner") <*>
-    (v .: "slot") <*>
-    (v .: "campaign") <*>
-    (v .: "code")
+instance FromJSON Hit
+instance ToJSON Hit
 
-instance FromJSON Hit where
-    parseJSON (Object o) = process o
-    parseJSON (Array a) = mzero
-    parseJSON _ = mzero
+data Global = Global {
+    conn :: Connection,
+    serv :: Server
+}
+configFile :: FilePath
+configFile = "config.json"
 
 main :: IO ()
 main = do
-    let port = 3000
-    putStrLn $ "Running on port " ++ show port ++ "..."
-    run port application
+    c <- (eitherDecode <$> readJSON configFile) :: IO (Either String Config)
+    case c of 
+        Left err -> putStrLn err
+        Right c -> do 
+            memcache <- initMemcache c
+            conn <- initAmqp c
+            
+            runApp c c memcache conn
+            
+            closeConnections conn memcache
 
-application:: Application
-application req = do
-    response <- lift $ handle $ head $ pathInfo req
+readJSON :: FilePath -> IO (BL.ByteString)
+readJSON fileName = BL.readFile fileName
+
+    
+initMemcache :: Config -> IO (Server)
+initMemcache (Config { 
+        memcacheHost = memcacheHost,
+        memcachePort = memcachePort
+        }) = do
+    -- @todo FIXME Int -> PortNumber
+    server <- Single.connect memcacheHost 11211
+    return server
+
+initAmqp :: Config -> IO (Connection)
+initAmqp (Config { 
+        amqpHost = amqpHost,
+        amqpVHost = amqpVHost,
+        amqpUser = amqpUser,
+        amqpPassword = amqpPassword,
+        amqpQueueName = amqpQueueName,
+        amqpExchangeName = amqpExchangeName,
+        amqpKey = amqpKey}) = do
+    conn <- AMQP.openConnection amqpHost amqpVHost amqpUser amqpPassword
+    chan <- AMQP.openChannel conn
+    --queues
+    AMQP.declareQueue chan AMQP.newQueue {AMQP.queueName = amqpQueueName}
+    AMQP.declareExchange chan 
+                         AMQP.newExchange {AMQP.exchangeName = amqpExchangeName, 
+                                           AMQP.exchangeType = "fanout"}
+    AMQP.bindQueue chan amqpQueueName amqpExchangeName amqpKey
+    return conn
+
+closeConnections :: Connection -> Server -> IO ()
+closeConnections conn memcache = do
+    AMQP.closeConnection conn
+    Single.disconnect memcache 
+
+
+runApp :: Config -> Config -> Server -> Connection -> IO ()
+runApp (Config {appPort = appPort}) config srv conn = do
+    putStrLn $ "Running on port " ++ (show appPort) ++ "..."
+    run appPort $ application config srv conn
+
+application :: Config -> Server -> Connection -> Application
+application conf srv conn req = do
+    response <- lift $ handle conf srv conn $ pathInfo req
+
     return $
         case pathInfo req of
             [] -> yay
-            ["yay"] -> yay
-            x -> action response
-
+            ["yay":rest] -> yay
+            x -> process response
 yay :: Response
 yay = ResponseBuilder status200 [("Content-type", "text/plain")] $
-    mconcat $ map copyByteString ["yay"]
+    mconcat $ Prelude.map copyByteString ["yay"]
 
-action :: BL.ByteString -> Response
-action x = responseLBS status200 [("Content-type", "text/plain")] x
+process:: BL.ByteString -> Response
+process x = responseLBS status200 [("Content-type", "text/plain")] x
 
-handle :: T.Text -> IO BL.ByteString
-handle slotId = do
-    ---INIT
-    --memcached
-    server <- Single.connect "localhost" 11211
-
-    json <- getJsonString server slotId
-
-    Single.disconnect server
-    --let x = decode (BL.pack json) :: Maybe [Hit]
+handle :: Config -> Server -> Connection -> Text -> IO BL.ByteString
+handle conf srv conn slotId = do 
+    --meat!
+    json <- getJsonString conf srv slotId
     let x = decode (BL.pack json) :: Maybe [Hit]
-        
+    
     case x of
         Nothing -> do
             return $ BL.pack ""
@@ -97,33 +155,34 @@ handle slotId = do
             z <- pick x
             msg <- encodeHit z
             --amqp
-            conn <- AMQP.openConnection "127.0.0.1" "galahad" "guest" "guest"
-            chan <- AMQP.openChannel conn
-            --queues
-            AMQP.declareQueue chan AMQP.newQueue {AMQP.queueName = "amqp.hit.message.queue"}
-            AMQP.declareExchange chan 
-                                 AMQP.newExchange {AMQP.exchangeName = "amqp.hit.message.exchange", 
-                                                   AMQP.exchangeType = "fanout"}
-            AMQP.bindQueue chan "amqp.hit.message.queue" "amqp.hit.message.exchange" "myKey"
-            AMQP.publishMsg chan "amqp.hit.message.exchange" "myKey"
-                AMQP.newMsg { AMQP.msgBody = (LBase64.encode (BL.pack (msg)) ),
-                              AMQP.msgDeliveryMode = Just AMQP.Persistent}
-            AMQP.closeConnection conn
-            
+            publishMessage conf conn msg
             return (BL.pack (getHitCode z))
 
-getJsonString :: (Memcache mc) => mc ->T.Text -> IO String
-getJsonString memcache key = do
-    let mckey = "galahad_cache_" ++ (T.unpack key)
+publishMessage :: Config -> Connection -> String -> IO ()
+publishMessage (Config{
+        amqpExchangeName = amqpExchangeName,
+        amqpKey = amqpKey
+    }) conn msg = do
+    
+    chan <- AMQP.openChannel conn
+    AMQP.publishMsg chan amqpExchangeName amqpKey
+        AMQP.newMsg { AMQP.msgBody = (LBase64.encode (BL.pack (msg)) ),
+                      AMQP.msgDeliveryMode = Just AMQP.Persistent}
+
+getJsonString :: (Memcache mc) => Config -> mc -> Text -> IO String
+getJsonString (Config {memcachePrefix = memcachePrefix}) memcache key = do
+    let mckey = memcachePrefix ++ ( Data.Text.unpack key )
     --print mckey
     json <- Network.Memcache.get memcache mckey
     case json of
             Nothing -> return mzero
             Just v -> return v
 
+-- @todo make dependent on current ML algo (module?)
 pick :: [a] -> IO a
-pick xs = randomRIO (0, (length xs - 1)) >>= return . (xs !!)   
+pick xs = randomRIO (0, (Prelude.length xs - 1)) >>= return . (xs !!)   
 
+-- @todo rewrite!
 encodeHit :: Hit -> IO String
 encodeHit (Hit {banner = b, slot = s, campaign = c, code = code}) = do
     now <- getZonedTime

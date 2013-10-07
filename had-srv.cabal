@@ -3,7 +3,7 @@
 
 name:                had-srv
 version:             0.0.0.1
-synopsis:            Just a sample webserver
+synopsis:            Just a sample ad serving server
 -- description:         
 -- license:             
 license-file:        LICENSE
@@ -15,23 +15,25 @@ build-type:          Simple
 cabal-version:       >=1.8
 
 executable had-srv
-  main-is: srv.hs           
-  -- other-modules:       
-  build-depends:        base ==4.6.*,
-                        random,
-                        utf8-string,
-                        aeson,
-                        warp, 
-                        memcached,
-                        amqp,
-                        base64-string,
-                        base64-bytestring,
-                        blaze-builder,
-                        http-types,
-                        wai,
-                        transformers,
-                        old-locale,
-                        time,
-                        text,
-                        array,
-                        bytestring
+    main-is:        srv.hs           
+    --other-modules:      
+    build-depends:  base ==4.6.*,
+                    random,
+                    utf8-string,
+                    mtl,
+                    aeson,
+                    warp, 
+                    memcached,
+                    amqp,
+                    base64-string,
+                    base64-bytestring,
+                    blaze-builder,
+                    network,
+                    http-types,
+                    wai,
+                    transformers,
+                    old-locale,
+                    time,
+                    text,
+                    array,
+                    bytestring

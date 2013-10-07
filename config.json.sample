@@ -1,0 +1,13 @@
+{
+    "appPort" : 3000,
+    "memcacheHost" : "localhost",
+    "memcachePort" : 11211,
+    "memcachePrefix" : "your_cache_key_",
+    "amqpHost" : "127.0.0.1",
+    "amqpUser" : "guest",
+    "amqpPassword" : "guest",
+    "amqpVHost": "your_amqp_vhost",
+    "amqpQueueName" : "some.message.queue",
+    "amqpExchangeName" : "some.message.exchange",
+    "amqpKey" : "my_amqp_key"
+}
